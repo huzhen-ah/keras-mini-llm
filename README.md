@@ -55,6 +55,8 @@ python bbpe_trainer.py
 
 当前 tokenizer 是 byte-level BPE，因此基础词表从 0-255 的 byte 开始，再通过 merge rules 扩展词表。
 
+详细说明见：[BBPE 原理与实现](docs/bbpe.md)。
+
 ### 2. 预训练语言模型
 
 `pretrain.py` 使用 next token prediction 训练 decoder-only Transformer。
@@ -223,7 +225,6 @@ __pycache__/
 
 ## Roadmap
 
-- 补充 BBPE 原理与实现文档
 - 补充 RoPE 原理与实现文档
 - 补充 KVCache 推理文档
 - 增加最小运行示例
