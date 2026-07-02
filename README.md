@@ -13,18 +13,28 @@
 ## 整体链路
 
 ```mermaid
-flowchart LR
-    A["Plain text"] --> B["BBPETrainer"]
-    B --> C["vocab.json / merge_rules.json"]
-    C --> D["Tokenizer"]
-    D --> E["Token ids"]
-    E --> F["Decoder-only Transformer pretraining"]
-    F --> G["Weight path mapping"]
-    G --> H["Prefill model"]
-    H --> I["Initial KVCache"]
-    I --> J["Decode model"]
-    J --> K["Next-token generation"]
-    J --> I
+flowchart TB
+    subgraph T["Tokenizer"]
+        A["Plain text"] --> B["BBPETrainer"]
+        B --> C["vocab.json / merge_rules.json"]
+        C --> D["Tokenizer"]
+        D --> E["Token ids"]
+    end
+
+    subgraph P["Pretraining"]
+        E --> F["Decoder-only Transformer"]
+        F --> G["Next-token prediction"]
+        F --> H["Weight path mapping"]
+    end
+
+    subgraph I["Inference"]
+        H --> J["Prefill model"]
+        J --> K["Initial KVCache"]
+        K --> L["Decode model"]
+        L --> M["Next token"]
+        M --> L
+        L --> K
+    end
 ```
 
 ## 快速开始
