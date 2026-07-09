@@ -146,7 +146,7 @@ if __name__ == "__main__":
         X_train,X_test = load_sft_data(data_path,tokenizer_tool, context_size,test_ratio=0.01)              
         
         print("训练样本数: ",len(X_train))
-        print("X: ",X_train[:3])
+        # print("X: ",X_train[:3])
         
         
     
@@ -214,7 +214,7 @@ if __name__ == "__main__":
         X_test = pre_infer_dpo_data(X_test, model, eos_id, pad_id)
         
         print("训练样本数: ",len(X_train))
-        print("X: ",X_train[:3])
+        # print("X: ",X_train[:3])
         
        
         model.fit(data_generator_dpo(X_train, eos_id, pad_id,batch_size=batch_size),
