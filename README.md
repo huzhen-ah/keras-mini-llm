@@ -1,6 +1,6 @@
 # Mini LLM Demo
 
-这是一个基于 Keras / TensorFlow 实现的 mini LLM demo，覆盖从 tokenizer、decoder-only Transformer 预训练、LoRA-SFT、DPO 偏好优化，到 prefill / decode KVCache 推理的完整主链路。
+这是一个基于 Keras / TensorFlow 实现的 mini LLM demo，覆盖从 tokenizer、decoder-only Transformer 预训练、LoRA-SFT、LoRA-DPO，到 prefill / decode KVCache 推理的完整主链路。
 
 ## 项目亮点
 
@@ -8,7 +8,7 @@
 - 实现 decoder-only Transformer，包括 RMSNorm、RoPE、SwiGLU、causal mask 和 padding mask。
 - 支持 next-token prediction 预训练流程。
 - 支持 LoRA-SFT：构造 instruction 数据，使用 answer-only loss mask，在 Attention 和 SwiGLU 中接入 LoRA，只训练 LoRA 参数，并单独保存 / 加载 LoRA 权重。
-- 支持 DPO：构造 chosen / rejected 偏好数据，预计算 reference logp，使用 DPO loss 继续训练 LoRA 参数。
+- 支持 LoRA-DPO：构造 chosen / rejected 偏好数据，预计算 reference logp，使用 DPO loss 继续训练 LoRA 参数。
 - 拆分 prefill / decode 推理模型，并实现固定长度 KVCache 更新。
 - 使用 Keras 权重路径映射，在 pretrain / LoRA-SFT / prefill / decode 模型之间迁移参数。
 
@@ -82,7 +82,7 @@ python pretrain.py
 python lora_sft.py
 ```
 
-可选：在 SFT 模型基础上进行 DPO 偏好优化：
+可选：在 SFT 模型基础上进行 LoRA-DPO：
 
 ```bash
 python merge_lora_checkpoint.py
@@ -215,9 +215,9 @@ data_path
 
 训练结束后得到的 LoRA 权重可以在 `interface.py` 中通过 `lora_weights_path` 加载。
 
-### 4. DPO 偏好优化
+### 4. LoRA-DPO
 
-`lora_dpo.py` 在 SFT 模型基础上继续做偏好优化。当前实现采用：
+`lora_dpo.py` 在 SFT 模型基础上继续做 LoRA-DPO。当前实现采用：
 
 - chosen / rejected 数据格式
 - `prompt + answer + eos` 序列构造
@@ -239,7 +239,7 @@ python merge_lora_checkpoint.py
 python lora_dpo.py
 ```
 
-DPO 数据和权重目录默认不随仓库提交。详细说明见：[LoRA-DPO 原理与实现](docs/lora_dpo.md)。
+LoRA-DPO 数据和权重目录默认不随仓库提交。详细说明见：[LoRA-DPO 原理与实现](docs/lora_dpo.md)。
 
 ### 5. KVCache 推理
 
@@ -425,4 +425,4 @@ BBPE tokenizer
   -> KVCache inference
 ```
 
-项目代码尽量保持直接、可读，适合作为理解 tokenizer、Transformer 训练、LoRA-SFT 和 KVCache 推理流程的小型参考。
+项目代码尽量保持直接、可读，适合作为理解 tokenizer、Transformer 训练、LoRA-SFT、LoRA-DPO 和 KVCache 推理流程的小型参考。
