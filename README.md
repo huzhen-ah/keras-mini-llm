@@ -477,7 +477,6 @@ DPO_data/emperor_dpo_pairs_v1.jsonl
 
 下一步：
 
-- [ ] 增加 tokenizer 单元测试
 - [ ] 增加训练、权重迁移和推理 smoke test
 - [ ] 增加 prefill/decode cache shape 与有效长度检查
 - [ ] 抽离统一配置，减少训练和推理脚本中的硬编码路径
