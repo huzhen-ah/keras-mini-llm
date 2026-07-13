@@ -12,6 +12,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from train_utils import load_pretrain_data,PretrainDataset
+from callbacks import Evaluate
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -54,14 +55,17 @@ if __name__ == "__main__":
     train_dataset = PretrainDataset(X_train, eos_id)
     train_dataloader = DataLoader(train_dataset,batch_size=batch_size,shuffle=True)
     
-    epochs = 100
+    test_dataset = PretrainDataset(X_test, eos_id)
+    test_dataloader = DataLoader(test_dataset,batch_size=batch_size,shuffle=False)
     
-    for epoch in range(epochs):
+    evaluator = Evaluate(tokenizer_tool)
+    
+    def train(epoch,dataloader,model,optimizer,pretrain_loss,pretrain_accuray):
+        model.train()
         total_loss = 0
-        num_batch = 0
-        total_correct = 0
-        total_valid = 0
-        for X,Y in train_dataloader:
+        total_correct_tokens = 0
+        total_valid_tokens = 0
+        for X,Y in dataloader:
             X = X.to(device)
             Y = Y.to(device=device,dtype=torch.long)
             output = model(X)
@@ -69,13 +73,35 @@ if __name__ == "__main__":
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            total_loss += loss.item()
-            correct,valid = pretrain_accuray(output, Y, pad_id)
-            total_correct += correct
-            total_valid += valid
-            num_batch += 1
-        print("Epoch: {},loss={},accuracy:{}".format(epoch,total_loss/num_batch,total_correct/total_valid))
+            
+            correct_tokens,valid_tokens = pretrain_accuray(output, Y, pad_id)
+            total_loss += loss.item()*valid_tokens
+            total_correct_tokens += correct_tokens
+            total_valid_tokens += valid_tokens
+            
+        print("Epoch: {},loss={},accuracy:{}".format(epoch,total_loss/total_valid_tokens,total_correct_tokens/total_valid_tokens))
+    def test(epoch,dataloader,model,pretrain_loss,pretrain_accuray):
+        model.eval()
+        total_loss = 0
+        total_correct_tokens = 0
+        total_valid_tokens = 0
+        with torch.no_grad():
+            for X,Y in dataloader:
+                X = X.to(device)
+                Y = Y.to(device,dtype=torch.long)
+                output = model(X)
+                loss = pretrain_loss(output,Y,pad_id)
+                correct_tokens,valid_tokens = pretrain_accuray(output, Y, pad_id)
+                total_loss += loss.item()*valid_tokens
+                total_correct_tokens += correct_tokens
+                total_valid_tokens += valid_tokens
+        print("Epoch: {},test_loss={},test_accuracy:{}".format(epoch,total_loss/total_valid_tokens,total_correct_tokens/total_valid_tokens))
+        evaluator.on_epoch_end(model, epoch,device)
         
+    epochs = 10
+    for epoch in range(epochs):
+        train(epoch,train_dataloader,model,optimizer,pretrain_loss,pretrain_accuray)
+        test(epoch,test_dataloader,model,pretrain_loss,pretrain_accuray)
         
             
         

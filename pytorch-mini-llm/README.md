@@ -16,6 +16,9 @@ PyTorch 版本已经跑通 decoder-only Transformer 的预训练主链路：
   -> masked cross entropy
   -> token accuracy
   -> backward / optimizer step
+  -> validation
+  -> top-k sampling
+  -> state_dict checkpoint
 ```
 
 已完成：
@@ -29,13 +32,16 @@ PyTorch 版本已经跑通 decoder-only Transformer 的预训练主链路：
 - 忽略 PAD token 的 cross entropy loss。
 - 忽略 PAD token 的 token accuracy。
 - 基础 PyTorch 训练循环。
+- 验证集 loss 和 token accuracy 统计。
+- 训练期间的 Top-k 自回归采样。
+- 基于 `state_dict` 的 base model 权重保存和加载。
 - Attention 和 SwiGLU 中的 LoRA 层结构及权重合并方法。
 
 尚未完成：
 
 - LoRA-SFT 训练流程。
 - LoRA-DPO 训练流程。
-- 预训练和 LoRA 权重的完整保存、加载流程。
+- LoRA-only 权重的完整保存、加载流程。
 - Prefill / decode 模型。
 - KVCache 推理。
 - 完整的采样和对话入口。
@@ -72,6 +78,16 @@ target: tokens[1:]
 
 loss 和 accuracy 都会忽略 `pad_id`。
 
+每个 epoch 结束后，当前代码会运行验证、生成一段示例文本，并将不含 LoRA 参数的 base model `state_dict` 保存到本地 `models/` 目录。这些 checkpoint 是本地训练产物，不提交到 Git。
+
+## 语料与生成效果
+
+仓库当前附带的预训练语料是小规模中国历代帝王人物文本。它适合验证 tokenizer、Transformer、loss、训练、权重保存和生成链路，但不适合训练通用中文生成模型。
+
+当前语料规模小、领域单一，并且“帝”、“王”、“国”等模式频率较高。对领域外 prompt 进行采样时，模型可能出现高频词循环和重复退化。因此，当前生成结果只用于判断代码链路是否跑通，不代表模型已具备实用的语言能力。
+
+后续计划引入许可证明确、题材更丰富的开源中文语料，现有帝王语料可作为小比例领域数据保留。
+
 ## 主要文件
 
 ```text
@@ -82,10 +98,13 @@ losses.py          # padding-aware pretraining loss
 metrics.py         # padding-aware token accuracy
 models.py          # 预训练模型
 pretrain.py        # 训练入口和训练循环
+callbacks.py       # epoch 结束采样与权重保存
 rope.py            # RoPE
+sample_utils.py    # Top-k sampling
 tokenizer.py       # tokenizer 编码与解码
 train_utils.py     # 语料加载和 Dataset
 transformblock.py  # Transformer Block
+weight_utils.py    # state_dict 保存与加载
 data/              # 预训练文本语料
 tokenizer_config/  # vocab 和 merge rules
 ```
