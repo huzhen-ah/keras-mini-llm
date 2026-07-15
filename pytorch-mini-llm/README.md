@@ -55,14 +55,14 @@ python interface.py
 `interface.py` 默认加载：
 
 ```text
-models/9_k2v_weights.pt
+lora_dpo_weights/0_k2v_lora_merged_weights.pt
 ```
 
-若要使用 SFT 或 DPO 后的模型，请修改文件底部的 `configs`。合并权重已经不再需要 LoRA 分支，因此可以保持 `use_lora=False`，并将 `weight_map_path` 指向：
+若要切换为 base 或 SFT 后的模型，请修改文件底部的 `configs`。合并权重已经不再需要 LoRA 分支，因此可以保持 `use_lora=False`，并将 `weight_map_path` 指向：
 
 ```text
+models/0_k2v_weights.pt
 lora_sft_weights/0_k2v_lora_merged_weights.pt
-lora_dpo_weights/0_k2v_lora_merged_weights.pt
 ```
 
 可以直接替换 `text_1` 至 `text_4` 或 `prompts` 列表来测试自己的输入。
@@ -120,7 +120,7 @@ python pretrain.py
 | SwiGLU hidden channels | 128 |
 | Context size | 200 |
 | Batch size | 128 |
-| Epochs | 10 |
+| Epochs | 1 |
 | Learning rate | 0.001 |
 
 训练目标为 next-token prediction：
@@ -136,7 +136,7 @@ loss 和 accuracy 均忽略 `<pad>`。每个 epoch 结束时会执行验证和 T
 models/{epoch}_k2v_weights.pt
 ```
 
-仓库附带 `0_k2v_weights.pt` 至 `9_k2v_weights.pt`。
+仓库当前附带 `models/0_k2v_weights.pt`。
 
 #### 3. LoRA-SFT
 

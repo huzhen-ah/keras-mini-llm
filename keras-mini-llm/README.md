@@ -94,9 +94,10 @@ python lora_sft.py
 可选：在 SFT 模型基础上进行 LoRA-DPO：
 
 ```bash
-python merge_lora_checkpoint.py
 python lora_dpo.py
 ```
+
+`lora_sft.py` 训练结束后会自动生成 merged SFT 权重；`merge_lora_checkpoint.py` 仅用于需要手动重新合并已有 base/LoRA 权重的场景。
 
 最后运行推理入口。`interface.py` 可以只加载 base 权重，也可以额外加载 LoRA 权重：
 
@@ -259,7 +260,7 @@ SFT_data/sft_data.jsonl
 - 使用 DPO loss 优化 LoRA 参数
 - DPO LoRA 权重单独保存到 `lora_dpo_weights/`
 
-运行 DPO 前，先把已经训练好的 SFT LoRA 合并进 base 权重，得到 SFT merged base：
+`lora_sft.py` 训练结束后会自动把 SFT LoRA 合并进 base 权重，得到 DPO 所需的 SFT merged base。若只有旧的 LoRA 增量权重，也可以手动执行：
 
 ```bash
 python merge_lora_checkpoint.py
@@ -457,7 +458,7 @@ DPO_data/dpo_data.jsonl
 | LoRA-DPO | `lora_dpo_weights/{epoch}_lora_weights.pkl` | 在 SFT merged base 上叠加 DPO LoRA |
 | DPO 合并 | `lora_dpo_weights/{epoch}_k2v_lora_merged_weights.pkl` | 直接以 `use_lora=False` 运行推理 |
 
-独立训练脚本的 callback 会保存 LoRA 增量权重；`demo.py` 还会在每个 LoRA 阶段结束后执行合并并保存 merged 权重。若手动串联独立脚本，请确认脚本中的 epoch 编号和文件路径指向实际生成的 checkpoint。
+独立训练脚本的 callback 会保存 LoRA 增量权重，训练结束后还会执行合并并保存 merged 权重；`demo.py` 采用相同流程。若手动串联各阶段，请确认脚本中的 epoch 编号和文件路径指向实际生成的 checkpoint。
 
 这些文件是否提交到仓库，取决于当前 demo 版本需要。作为工程实践，正式项目中通常会把大模型权重和大规模训练数据放到外部存储，只在仓库中保留下载说明、配置和小样例。
 
@@ -474,10 +475,10 @@ DPO_data/dpo_data.jsonl
 - [x] LoRA 增量权重保存、加载与 merged checkpoint
 - [x] Prefill/decode 拆分与 KVCache 推理
 - [x] 端到端 `demo.py`
+- [x] 提供计算结构对应的 PyTorch 实现
 
 下一步：
 
-- [ ] 将当前 Keras / TensorFlow 实现迁移为 PyTorch 版本
 - [ ] RAG：文档切分、检索、prompt 拼接与生成效果对比
 
 ## 说明
