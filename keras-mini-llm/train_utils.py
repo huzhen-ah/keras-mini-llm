@@ -187,11 +187,9 @@ def pre_infer_dpo_data(X,model,eos_id,pad_id,batch_size=64):
         batch_inputs = np.concatenate([batch_chosen_input_ids,batch_rejected_input_ids],axis=0)
         return batch_inputs[:,:-1],batch_inputs[:,1:]
     
-    def softmax(X):
-        
-        up = np.exp(X - np.max(X,axis=-1,keepdims=True))
-        down = np.sum(up,axis=-1,keepdims=True)
-        return up / down
+    def log_softmax(X):
+        X_max = np.max(X,axis=-1,keepdims=True)
+        return X - X_max - np.log(np.sum(np.exp(X-X_max),axis=-1,keepdims=True))
     
     
     batch_chosen_input_ids = []
@@ -216,7 +214,7 @@ def pre_infer_dpo_data(X,model,eos_id,pad_id,batch_size=64):
         if len(batch_chosen_input_ids) == batch_size or i == len(X) - 1:
             batch_inputs,batch_outputs = padding(batch_chosen_input_ids,batch_rejected_input_ids)
             batch_preds = model.predict(batch_inputs,verbose=0)
-            batch_logp = np.log(softmax(batch_preds))
+            batch_logp = log_softmax(batch_preds)
             batch_logp = np.take_along_axis(batch_logp, batch_outputs[...,None],axis=-1)[:,:,0]
             batch_chosen_logp,batch_rejected_logp = np.split(batch_logp, 2, axis=0)
             for j in range(len(batch_chosen_logp)):
