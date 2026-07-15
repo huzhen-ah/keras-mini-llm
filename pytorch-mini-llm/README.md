@@ -1,199 +1,320 @@
 # PyTorch Mini LLM
 
-这是 `keras-mini-llm/` 的 PyTorch 对照实现，用于学习两个框架在 Tensor API、模型组织、数据加载和训练循环上的差异。
+这是一个用于学习和教学的 mini LLM PyTorch 实现，与 `keras-mini-llm/` 保持相同的核心计算链路。项目不依赖 Hugging Face Transformers，从 Byte-level BPE tokenizer 开始，逐步实现 decoder-only Transformer 预训练、LoRA-SFT、LoRA-DPO，以及带 KVCache 的 Prefill / Decode 推理。
 
-## 当前状态
+> 本项目的目标是展示完整链路和关键实现，不是训练可用于生产环境的通用大语言模型。
 
-PyTorch 版本已经实现 decoder-only Transformer 预训练、LoRA-SFT、LoRA-DPO 和 KVCache 推理的完整主链路：
+## 完整链路
 
 ```text
-文本语料
-  -> BBPE tokenizer
-  -> Dataset / DataLoader
-  -> token embedding
-  -> Transformer blocks
-  -> tied embedding output projection
-  -> masked cross entropy
-  -> token accuracy
-  -> backward / optimizer step
-  -> validation
-  -> top-k sampling
-  -> state_dict checkpoint
-  -> LoRA-SFT
-  -> LoRA-DPO
-  -> prefill
-  -> KVCache decode
-  -> end-to-end demo
+原始文本
+  -> Byte-level BPE tokenizer
+  -> decoder-only Transformer 预训练
+  -> LoRA-SFT 指令微调
+  -> LoRA-DPO 偏好优化
+  -> Prefill / Decode
+  -> KVCache 自回归生成
 ```
 
-已完成：
+核心组件包括：
 
-- Byte-level BPE trainer 和 tokenizer。
-- RMSNorm、RoPE、SwiGLU 和 causal self-attention。
-- 多头 Attention 的 reshape / permute 与 padding mask。
-- Pre-Norm Transformer Block 和 `nn.ModuleList` 多层堆叠。
-- Embedding 与 vocabulary projection 权重共享。
-- `Dataset` / `DataLoader` 预训练数据管线。
-- 忽略 PAD token 的 cross entropy loss。
-- 忽略 PAD token 的 token accuracy。
-- 基础 PyTorch 训练循环。
-- 验证集 loss 和 token accuracy 统计。
-- 训练期间的 Top-k 自回归采样。
-- 基于 `state_dict` 的 base model 权重保存和加载。
-- Attention 和 SwiGLU 中的 LoRA 层结构及权重合并方法。
-- Prefill / decode 模型拆分。
-- Prefill 阶段的逐层 K/V 收集。
-- Decode 阶段的 KVCache 原地更新。
-- 支持不同 prompt 长度和动态 batch 裁剪的推理接口。
-- LoRA-only 权重保存、加载和 merged weight 工具。
-- SFT JSONL 数据加载、batch 内动态 padding 和 response-only mask。
-- 逐 token masked SFT loss 和 SFT token accuracy。
-- 冻结 base model、仅优化 LoRA 参数的训练流程。
-- DPO chosen/rejected 数据加载、reference logp 预计算和动态 batch padding。
-- PyTorch DPO loss、LoRA-DPO 训练、验证与权重合并。
-- 从 tokenizer、预训练、LoRA-SFT、LoRA-DPO 到 KVCache 推理的端到端 `demo.py`。
+- Byte-level BPE 训练、编码和解码
+- RMSNorm、RoPE、SwiGLU、causal self-attention
+- Pre-Norm Transformer Block 与 tied embedding
+- next-token prediction、PAD mask、token accuracy
+- LoRA 参数注入、冻结、独立保存和权重合并
+- response-only SFT loss
+- chosen/rejected DPO loss 与 reference log-probability 预计算
+- Prefill / Decode 模型拆分和 KVCache 原地更新
+- 不同 prompt 长度的 batch 推理与完成样本动态裁剪
 
-尚未完成：
+## 环境要求
 
-- 面向多轮对话的 chat template 和完整对话入口。
+建议使用 Python 3.10 或更高版本。代码依次选择 NVIDIA CUDA、Apple MPS 和 CPU。
 
-## 当前模型
+进入 PyTorch 子项目后安装依赖：
 
-预训练模型包含：
+```bash
+cd pytorch-mini-llm
+python -m pip install torch numpy regex tqdm charset-normalizer
+```
 
-- token embedding
-- RMSNorm
-- RoPE multi-head causal self-attention
-- SwiGLU feed-forward network
-- residual connection
-- tied embedding output projection
+如需 GPU 版本的 PyTorch，请根据本机 CUDA 环境安装匹配的 PyTorch wheel。
 
-模型输入为 `[batch, sequence]` token IDs，输出为 `[batch, sequence, vocab_size]` logits。
+所有脚本都使用相对路径，因此后续命令应在 `pytorch-mini-llm/` 目录内执行。
 
-## 运行预训练
+## 快速开始
 
-进入当前目录后运行：
+仓库已附带 tokenizer 配置、预训练权重、SFT/DPO 合并权重和示例数据。无需重新训练即可运行 KVCache 推理：
+
+```bash
+cd pytorch-mini-llm
+python interface.py
+```
+
+`interface.py` 默认加载：
+
+```text
+models/9_k2v_weights.pt
+```
+
+若要使用 SFT 或 DPO 后的模型，请修改文件底部的 `configs`。合并权重已经不再需要 LoRA 分支，因此可以保持 `use_lora=False`，并将 `weight_map_path` 指向：
+
+```text
+lora_sft_weights/0_k2v_lora_merged_weights.pt
+lora_dpo_weights/0_k2v_lora_merged_weights.pt
+```
+
+可以直接替换 `text_1` 至 `text_4` 或 `prompts` 列表来测试自己的输入。
+
+## 从头运行完整流程
+
+### 方式一：端到端 Demo
+
+```bash
+python demo.py
+```
+
+`demo.py` 依次检查并运行 BBPE、预训练、LoRA-SFT、LoRA-DPO 和 KVCache 推理。对应产物已经存在时会跳过该训练阶段，因此仓库默认状态下主要用于验证完整链路和推理。
+
+如需真正从头训练，应先备份或移走对应产物，再运行 Demo：
+
+```text
+tokenizer_config/vocab.json
+tokenizer_config/merge_rules.json
+models/0_k2v_weights.pt
+lora_sft_weights/0_k2v_lora_merged_weights.pt
+lora_dpo_weights/0_k2v_lora_merged_weights.pt
+```
+
+### 方式二：分阶段运行
+
+#### 1. 训练 BBPE tokenizer
+
+```bash
+python bbpe_trainer.py
+```
+
+默认读取 `data/*.txt`，并生成：
+
+```text
+tokenizer_config/vocab.json
+tokenizer_config/merge_rules.json
+```
+
+重新训练 tokenizer 会改变 vocabulary 和 token ID 映射。此后必须重新训练模型，旧 checkpoint 不再兼容。
+
+#### 2. 预训练
 
 ```bash
 python pretrain.py
 ```
 
-`pretrain.py` 中目前直接定义了模型层数、head 数、embedding 维度、context size、batch size、epoch 和 learning rate，可在学习和调试时直接修改。
+默认配置：
 
-训练使用 next-token prediction：
+| 参数 | 默认值 |
+| --- | ---: |
+| Transformer blocks | 4 |
+| Attention heads | 2 |
+| Embedding dim | 64 |
+| SwiGLU hidden channels | 128 |
+| Context size | 200 |
+| Batch size | 128 |
+| Epochs | 10 |
+| Learning rate | 0.001 |
+
+训练目标为 next-token prediction：
 
 ```text
-input:  tokens[:-1]
-target: tokens[1:]
+X = tokens[:-1]
+Y = tokens[1:]
 ```
 
-loss 和 accuracy 都会忽略 `pad_id`。
+loss 和 accuracy 均忽略 `<pad>`。每个 epoch 结束时会执行验证和 Top-k 采样，并保存：
 
-每个 epoch 结束后，当前代码会运行验证、生成一段示例文本，并将不含 LoRA 参数的 base model `state_dict` 保存到 `models/` 目录。仓库当前附带 10 个预训练 checkpoint（`0_k2v_weights.pt` 至 `9_k2v_weights.pt`），可用于继续训练、SFT 和推理实验。
+```text
+models/{epoch}_k2v_weights.pt
+```
 
-## 运行 LoRA-SFT
+仓库附带 `0_k2v_weights.pt` 至 `9_k2v_weights.pt`。
 
-进入当前目录后运行：
+#### 3. LoRA-SFT
 
 ```bash
 python lora_sft.py
 ```
 
-SFT 数据位于 `SFT_data/emperor_sft_messages_v1.jsonl`，采用 messages JSONL 格式。数据管线先由 `SFTDataset` 返回单条未 padding 的 token IDs 和 response mask，再由 `sft_collate_fn` 在 batch 内动态 padding，并构造 next-token prediction 所需的输入与标签：
+默认读取：
 
 ```text
-完整 token 序列与 response mask
-  -> batch 内动态 padding
+base checkpoint: models/0_k2v_weights.pt
+training data:   SFT_data/sft_data.jsonl
+```
+
+数据采用 messages JSONL 格式。数据管线在 batch 内动态 padding，并只对 assistant response 和结尾 EOS 计算 loss 与 accuracy：
+
+```text
+完整序列 + response mask
+  -> 动态 padding
   -> X = token_ids[:, :-1]
   -> labels = token_ids[:, 1:]
   -> loss_mask = response_mask[:, 1:]
-  -> Y = stack(labels, loss_mask)
 ```
 
-训练前会加载 base model checkpoint，冻结所有非 LoRA 参数，并只将 `requires_grad=True` 的 LoRA 参数交给 Adam。loss 和 accuracy 只统计 assistant response 及其结尾 EOS，不统计 instruction 和 padding。
-
-## KVCache 推理
-
-PyTorch 推理拆分为两个阶段：
+训练时冻结 base model，只优化名称中包含 `lora_` 的参数。默认训练 1 个 epoch，保存两类权重：
 
 ```text
-完整 prompt
-  -> Prefill Model
-  -> 初始 K/V cache
-  -> 采样第一个 token
-  -> Decode Model 逐 token 更新 cache
+lora_sft_weights/0_lora_weights.pt             # 仅 LoRA 参数
+lora_sft_weights/0_k2v_lora_merged_weights.pt  # 合并后的完整推理权重
 ```
 
-整体 KVCache 使用统一布局：
+#### 4. LoRA-DPO
+
+```bash
+python lora_dpo.py
+```
+
+默认读取：
 
 ```text
-[layer, batch, head, max_time, head_dim]
+base checkpoint: lora_sft_weights/0_k2v_lora_merged_weights.pt
+training data:   DPO_data/dpo_data.jsonl
 ```
 
-每个 Decode Transformer Block 只接收当前层的 cache：
+每条 DPO 数据包含 chosen 和 rejected response。训练前先用冻结的 SFT 模型预计算 reference log-probability，再创建新的 LoRA 参数进行偏好优化。默认 `beta=0.1`、训练 1 个 epoch，并保存：
 
 ```text
-[batch, head, max_time, head_dim]
+lora_dpo_weights/0_lora_weights.pt
+lora_dpo_weights/0_k2v_lora_merged_weights.pt
 ```
 
-Decode Attention 根据每条样本的 `cur_valid_len - 1` 写入当前 token 的 K/V。生成结束的样本会与 KVCache 的 batch 维同步裁剪。
-
-当前推理示例可通过以下命令运行：
+#### 5. KVCache 推理
 
 ```bash
 python interface.py
 ```
 
-`interface.py` 中的模型结构参数和 checkpoint 路径需要与实际预训练产物保持一致。
-
-## 语料与生成效果
-
-仓库当前附带的预训练语料是小规模中国历代帝王人物文本。它适合验证 tokenizer、Transformer、loss、训练、权重保存和生成链路，但不适合训练通用中文生成模型。
-
-当前语料规模小、领域单一，并且“帝”、“王”、“国”等模式频率较高。对领域外 prompt 进行采样时，模型可能出现高频词循环和重复退化。因此，当前生成结果只用于判断代码链路是否跑通，不代表模型已具备实用的语言能力。
-
-后续计划引入许可证明确、题材更丰富的开源中文语料，现有帝王语料可作为小比例领域数据保留。
-
-## 主要文件
+推理分为两个阶段：
 
 ```text
-attention.py       # RoPE multi-head attention 与 KVCache attention
-bbpe_trainer.py    # BBPE 训练
-layers.py          # RMSNorm 和 SwiGLU
-losses.py          # pretraining、response-masked SFT 与 DPO loss
-metrics.py         # pretraining accuracy 与 response-masked SFT accuracy
-models.py          # 预训练模型
-inference_models.py # Prefill / decode 推理模型
-interface.py       # KVCache 自回归采样入口
-lora_utils.py      # LoRA 参数冻结、保存、加载与合并
-pretrain.py        # 训练入口和训练循环
-lora_sft.py        # LoRA-SFT 训练入口
-lora_dpo.py        # LoRA-DPO 训练入口
-demo.py            # tokenizer 到 DPO、KVCache 推理的端到端流程
-callbacks.py       # epoch 结束采样与权重保存
-rope.py            # RoPE
-sample_utils.py    # Top-k sampling
-tokenizer.py       # tokenizer 编码与解码
-train_utils.py     # 预训练、SFT、DPO 数据加载、Dataset 与 collate_fn
-transformblock.py  # 预训练、prefill 和 decode Transformer Block
-weight_utils.py    # state_dict 保存与加载
-data/              # 预训练文本语料
-SFT_data/          # messages JSONL 格式的 SFT 数据
-DPO_data/          # chosen/rejected JSONL 格式的 DPO 数据
-models/            # 已提交的预训练 checkpoint
-tokenizer_config/  # vocab 和 merge rules
+完整 prompt
+  -> Prefill：并行处理 prompt，创建每层 K/V cache
+  -> 采样第一个 token
+  -> Decode：每次只处理一个新 token，原地更新 cache
 ```
 
-## 与 Keras 版本的差异
+整体 cache 布局为：
 
-两个版本的模型计算结构对应，但框架默认值并不完全一致，包括：
+```text
+[layer, batch, head, max_time, head_dim]
+```
+
+每个 Decode Transformer Block 只接收自己所在层的：
+
+```text
+[batch, head, max_time, head_dim]
+```
+
+生成过程中，已遇到 `<eos>` 或达到最大长度的样本会从活动 batch 和 KVCache 中同步移除。
+
+## 权重关系
+
+```text
+models/0_k2v_weights.pt
+  -> 加载 base 权重并训练 SFT LoRA
+  -> lora_sft_weights/0_lora_weights.pt
+  -> merge
+  -> lora_sft_weights/0_k2v_lora_merged_weights.pt
+  -> 作为 DPO base，训练新的 DPO LoRA
+  -> lora_dpo_weights/0_lora_weights.pt
+  -> merge
+  -> lora_dpo_weights/0_k2v_lora_merged_weights.pt
+```
+
+模型结构、tokenizer 和 checkpoint 必须匹配。修改 `num_block`、`num_head`、`embedding_dim` 或重新训练 tokenizer 后，不应继续加载原有权重。
+
+## 数据说明
+
+### 预训练数据
+
+`data/` 中包含 15 部武侠作品文本，作为 BBPE tokenizer 与 next-token prediction 预训练语料。PyTorch 与 Keras 版本使用相同的数据集合；替换文本后必须重新训练 tokenizer 和全部后续 checkpoint。
+
+### SFT 数据
+
+`SFT_data/sft_data.jsonl` 共 5200 条，使用 `messages` 格式，训练只监督 assistant response 和结尾 EOS。
+
+### DPO 数据
+
+`DPO_data/dpo_data.jsonl` 共 5200 条，使用 `prompt/chosen/rejected` 格式，为武侠领域回答提供 chosen/rejected 偏好对。
+
+当前数据集中在武侠领域，生成结果会明显偏向相关人物、门派、武功和叙事表达，也可能出现重复退化。结果主要用于验证完整训练链路，不代表模型具备通用中文能力。
+
+## 目录与主要文件
+
+```text
+attention.py          # RoPE attention、Prefill attention、Decode attention
+bbpe_trainer.py       # Byte-level BPE 训练
+callbacks.py          # epoch 结束后的采样与权重保存
+demo.py               # 端到端流程
+inference_models.py   # Prefill / Decode 模型
+interface.py          # KVCache 批量生成接口
+layers.py             # RMSNorm 与 SwiGLU
+lora_dpo.py           # LoRA-DPO 训练入口
+lora_sft.py           # LoRA-SFT 训练入口
+lora_utils.py         # LoRA 冻结、保存、加载与合并
+losses.py             # 预训练、SFT、DPO loss
+metrics.py            # 预训练与 SFT token accuracy
+models.py             # 预训练模型
+pretrain.py           # 预训练入口
+rope.py               # Rotary Position Embedding
+sample_utils.py       # Top-k sampling
+tokenizer.py          # tokenizer 编码与解码
+train_utils.py        # 数据加载、Dataset 与 collate_fn
+transformblock.py     # 训练、Prefill、Decode Transformer Block
+weight_utils.py       # base state_dict 保存与加载
+data/                 # 预训练语料
+SFT_data/             # SFT JSONL 数据
+DPO_data/             # DPO JSONL 数据
+models/               # 预训练 checkpoint
+lora_sft_weights/     # SFT LoRA 与 merged checkpoint
+lora_dpo_weights/     # DPO LoRA 与 merged checkpoint
+tokenizer_config/     # vocabulary 与 merge rules
+```
+
+## 与 Keras 版本的主要差异
 
 - Keras `Dense` 与 PyTorch `Linear` 的权重布局和默认初始化不同。
-- Keras 和 PyTorch `Embedding` 的默认初始化不同；当前 PyTorch 版本已将 Embedding 初始化为 `[-0.05, 0.05]` 均匀分布。
-- TensorFlow 通常使用 `int32` token IDs，PyTorch cross entropy target 使用 `torch.long`。
-- Keras 通过 `compile/fit` 管理训练，PyTorch 显式编写 forward、backward 和 optimizer step。
-- Keras KVCache 更新需要构造 scatter indices；PyTorch decode 直接按 batch 和 time 索引原地写入 cache。
-- Keras 推理在模型输入输出侧使用 batch-first cache；PyTorch 全程保持 `[layer, batch, head, time, head_dim]`。
-- 即使结构一致，两边的随机初始化和 shuffle 顺序也会导致不同的训练曲线。
+- TensorFlow 通常使用 `int32` token ID；PyTorch cross entropy target 使用 `torch.long`。
+- Keras 通过 `compile/fit` 组织训练；PyTorch 显式执行 forward、backward 和 optimizer step。
+- Keras KVCache 更新需要构造 scatter indices；PyTorch Decode 直接按 batch/time 索引原地写入。
+- PyTorch 全程使用 `[layer, batch, head, time, head_dim]` 的整体 cache 布局。
+- 即使计算结构一致，随机初始化和 shuffle 顺序也会令两个版本产生不同的训练曲线。
 
-当前阶段主要目标是完成 PyTorch 版本的逐步翻译和对照学习，不保证两个框架在独立随机初始化下得到相同的 epoch 指标。
+## 常见问题
+
+### 找不到数据、tokenizer 或 checkpoint
+
+先确认当前工作目录是 `pytorch-mini-llm/`，因为入口脚本使用相对路径。
+
+### 加载权重时出现 size mismatch
+
+检查 tokenizer 和模型结构参数是否与生成该 checkpoint 时一致，重点包括 vocabulary size、block 数、head 数和 embedding dim。
+
+### CPU 训练速度很慢
+
+这是预期现象。可先减小 `batch_size`、`context_size`、`epochs` 或语料规模来验证链路。
+
+### 显存不足
+
+优先减小各入口脚本中的 `batch_size` 和 `context_size`。DPO 会同时处理 chosen/rejected，显存占用通常高于 SFT。
+
+### 生成文本重复或质量较差
+
+当前训练集规模小、题材集中，模型用于代码验证而非质量评测。可扩充许可证明确的多领域语料，并重新训练 tokenizer 和后续全部 checkpoint。
+
+## 当前限制
+
+- 超参数和路径直接写在入口脚本中，尚未提供命令行参数或统一配置文件。
+- 尚未实现面向多轮对话的 chat template 和交互式对话入口。
+- 未提供分布式训练、混合精度训练、梯度累积和正式 benchmark。
+- 当前示例数据与模型规模仅适合教学和链路验证。

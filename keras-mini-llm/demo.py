@@ -142,7 +142,7 @@ if __name__ == "__main__":
         
         
         
-        data_path = r"SFT_data/emperor_sft_messages_v1.jsonl"
+        data_path = r"SFT_data/sft_data.jsonl"
         X_train,X_test = load_sft_data(data_path,tokenizer_tool, context_size,test_ratio=0.01)              
         
         print("训练样本数: ",len(X_train))
@@ -208,7 +208,7 @@ if __name__ == "__main__":
                                              # sparse_categorical_crossentropy
         
         
-        dpo_data_path = r"DPO_data/emperor_dpo_pairs_v1.jsonl"
+        dpo_data_path = r"DPO_data/dpo_data.jsonl"
         X_train,X_test = load_dpo_data(dpo_data_path, tokenizer_tool, context_size)
         X_train = pre_infer_dpo_data(X_train, model, eos_id, pad_id)
         X_test = pre_infer_dpo_data(X_test, model, eos_id, pad_id)
@@ -245,10 +245,10 @@ if __name__ == "__main__":
 
     interface.init_decode_model(prefill_model_configs)
 
-    text_1 = "秦始皇是谁？"
-    text_2 = "汉武帝是谁？"
-    text_3 = "唐太宗谁谁？"
-    text_4 = "赵匡胤是谁？"
+    text_1 = "扫地僧是谁？"
+    text_2 = "大理国在哪？"
+    text_3 = "乔峰跟段誉什么关系？"
+    text_4 = "虚竹有多少年功力？"
 
     prompts = ["      ",text_1,text_2,text_3,text_4]
     ret = interface.predict(prompts)

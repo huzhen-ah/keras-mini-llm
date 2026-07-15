@@ -52,7 +52,7 @@ if __name__ == "__main__":
     X_train,X_test = load_pretrain_data(tokenizer_tool, data_pattern, context_size,test_ratio=0.01)              
     
     print("训练样本数: ",len(X_train))
-    print("X: ",X_train[:3])
+    
     
     
     

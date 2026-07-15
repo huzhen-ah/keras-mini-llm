@@ -224,7 +224,7 @@ def pre_infer_dpo_data(X,model,eos_id,pad_id,batch_size=64):
                 X[index]["chosen_logp"] = chosen_logp
                 X[index]["rejected_logp"] = rejected_logp
             progress += len(batch_chosen_input_ids)
-            print("以完成:{}/{}".format(progress,total))
+            print("已完成:{}/{}".format(progress,total))
             batch_chosen_input_ids = []
             batch_rejected_input_ids = []
             batch_indexes = []

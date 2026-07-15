@@ -9,8 +9,8 @@ from models import create_pretrain_model
 from losses import sft_loss
 from metrics import SFTAccuracy
 from train_utils import load_sft_data,data_generator_sft
-from weight_utils import apply_train_weights
-from lora_utils import mark_only_lora_as_trainable
+from weight_utils import apply_train_weights,save_model_weights
+from lora_utils import mark_only_lora_as_trainable,merge_lora_weights
 from callbacks import Lora_Evaluate
 
 
@@ -56,7 +56,7 @@ if __name__ == "__main__":
     
     
     
-    data_path = r"SFT_data/emperor_sft_messages_v1.jsonl"
+    data_path = r"SFT_data/sft_data.jsonl"
     X_train,X_test = load_sft_data(data_path,tokenizer_tool, context_size,test_ratio=0.01)              
     
     print("训练样本数: ",len(X_train))
@@ -73,7 +73,6 @@ if __name__ == "__main__":
               callbacks=[Lora_Evaluate(tokenizer_tool)]
               )  
     
-    
-    
-    
+    merge_lora_weights(model)
+    save_model_weights(model, r"lora_sft_weights/0_k2v_lora_merged_weights.pkl")
     

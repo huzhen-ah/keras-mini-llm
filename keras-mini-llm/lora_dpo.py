@@ -8,8 +8,8 @@ from tokenizer import Tokenizer
 from models import create_pretrain_model
 from losses import dpo_loss
 from train_utils import load_dpo_data,pre_infer_dpo_data,data_generator_dpo
-from weight_utils import apply_train_weights
-from lora_utils import mark_only_lora_as_trainable
+from weight_utils import apply_train_weights,save_model_weights
+from lora_utils import mark_only_lora_as_trainable,merge_lora_weights
 from callbacks import DPO_Evaluate
 
 if __name__ == "__main__":
@@ -53,7 +53,7 @@ if __name__ == "__main__":
                                          # sparse_categorical_crossentropy
     
     
-    dpo_data_path = r"DPO_data/emperor_dpo_pairs_v1.jsonl"
+    dpo_data_path = r"DPO_data/dpo_data.jsonl"
     X_train,X_test = load_dpo_data(dpo_data_path, tokenizer_tool, context_size)
     X_train = pre_infer_dpo_data(X_train, model, eos_id, pad_id)
     X_test = pre_infer_dpo_data(X_test, model, eos_id, pad_id)
@@ -68,5 +68,6 @@ if __name__ == "__main__":
               callbacks=[DPO_Evaluate(tokenizer_tool)]
               )  
         
-    
+    merge_lora_weights(model)
+    save_model_weights(model, r"lora_dpo_weights/0_k2v_lora_merged_weights.pkl")
     

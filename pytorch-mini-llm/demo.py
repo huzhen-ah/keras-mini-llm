@@ -21,7 +21,12 @@ import torch
 from torch.utils.data import DataLoader
 
 if __name__ == "__main__":
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
     torch.manual_seed(42)
     """
     STEP_1: 
@@ -84,7 +89,7 @@ if __name__ == "__main__":
         X_train,X_test = load_pretrain_data(tokenizer_tool, data_pattern, context_size,test_ratio=0.01)              
         
         print("训练样本数: ",len(X_train))
-        print("X: ",X_train[:3])
+        # print("X: ",X_train[:3])
         train_dataset = PretrainDataset(X_train, eos_id)
         train_dataloader = DataLoader(train_dataset,batch_size=batch_size,shuffle=True)
         
@@ -131,7 +136,7 @@ if __name__ == "__main__":
             print("Epoch: {},test_loss={},test_accuracy:{}".format(epoch,total_loss/total_valid_tokens,total_correct_tokens/total_valid_tokens))
             evaluator.on_epoch_end(model, epoch,device)
             
-        epochs = 10
+        epochs = 1
         for epoch in range(epochs):
             train(epoch,train_dataloader,model,optimizer,pretrain_loss,pretrain_accuracy)
             test(epoch,test_dataloader,model,pretrain_loss,pretrain_accuracy)
@@ -178,7 +183,7 @@ if __name__ == "__main__":
         
         
         
-        data_path = r"SFT_data/emperor_sft_messages_v1.jsonl"
+        data_path = r"SFT_data/sft_data.jsonl"
         X_train,X_test = load_sft_data(data_path,tokenizer_tool, context_size,test_ratio=0.01)              
         
         print("训练样本数: ",len(X_train))
@@ -282,7 +287,7 @@ if __name__ == "__main__":
         
         
         
-        data_path = r"DPO_data/emperor_dpo_pairs_v1.jsonl"
+        data_path = r"DPO_data/dpo_data.jsonl"
         X_train,X_test = load_dpo_data(data_path,tokenizer_tool, context_size,test_ratio=0.01)              
         
         print("训练样本数: ",len(X_train))
