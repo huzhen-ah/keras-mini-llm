@@ -19,7 +19,9 @@ BBPE tokenizer
 | 版本 | 当前状态 |
 | --- | --- |
 | [Keras / TensorFlow](keras-mini-llm/) | 已完成预训练、LoRA-SFT、LoRA-DPO、Prefill / Decode、KVCache 推理和端到端 demo |
-| [PyTorch](pytorch-mini-llm/) | 已完成预训练、LoRA-SFT、验证与采样、checkpoint、Prefill / Decode 和 KVCache 推理；LoRA-DPO 与端到端 demo 待完成 |
+| [PyTorch](pytorch-mini-llm/) | 已完成预训练、LoRA-SFT、LoRA-DPO、Prefill / Decode、KVCache 推理和端到端 demo |
+
+当前 Keras / TensorFlow 与 PyTorch 两个版本的核心训练和推理链路均已跑通。下一阶段将补充 PyTorch 版本的运行说明与实现文档。
 
 ## 目录结构
 
